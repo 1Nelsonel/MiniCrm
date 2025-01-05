@@ -4,67 +4,73 @@ from rest_framework.response import Response
 from rest_framework import status
 from .models import Lead, Contact, Note, Reminder
 from .serializers import LeadSerializer, ContactSerializer, NoteSerializer, ReminderSerializer
-
 from rest_framework.exceptions import ValidationError
-from rest_framework.authtoken.models import Token
-from django.contrib.auth.models import User
-
-# Create your views here.
-from rest_framework.permissions import IsAuthenticated
-
-# serilaizer
+from knox.models import AuthToken
 from .serializers import UserRegisterSerializer
-from .serializers import UserLoginSerializer
+from django.contrib.auth.mixins import PermissionRequiredMixin
+from django.contrib.auth import login
+from rest_framework import permissions
+from rest_framework.authtoken.serializers import AuthTokenSerializer
+from knox.views import LoginView as KnoxLoginView
 
+class LoginView(KnoxLoginView):
+    permission_classes = (permissions.AllowAny,)
 
-class UserLoginAPIView(APIView):
-    def post(self, request, *args, **kargs):
-        serializer = UserLoginSerializer(data=request.data)
-        if serializer.is_valid():
-            response = {
-                "username": {
-                    "detail": "User Doesnot exist!"
-                }
-            }
-            if User.objects.filter(username=request.data['username']).exists():
-                user = User.objects.get(username=request.data['username'])
-                token, created = Token.objects.get_or_create(user=user)
-                response = {
-                    'success': True,
-                    'username': user.username,
-                    'email': user.email,
-                    'token': token.key
-                }
-                return Response(response, status=status.HTTP_200_OK)
-            return Response(response, status=status.HTTP_400_BAD_REQUEST)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
+    def post(self, request, format=None):
+        try:
+            print("POST: login ", request.data)
+            serializer = AuthTokenSerializer(data=request.data)
+            if serializer.is_valid():
+                user = serializer.validated_data['user']
+                login(request, user)
+                
+                # Get the token and expiry from Knox
+                token_instance, token = AuthToken.objects.create(user)
+                
+                return Response({
+                    'status': 'success',
+                    'message': 'Successfully logged in',
+                    'data': {
+                        'token': token,
+                        'user': {
+                            'id': user.id,
+                            'username': user.username,
+                            'email': user.email
+                        }
+                    }
+                }, status=status.HTTP_200_OK)
+            
+            return Response({
+                'status': 'error',
+                'message': 'Invalid credentials',
+                'errors': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+                
+        except Exception as e:
+            return Response({
+                'status': 'error',
+                'message': 'An error occurred during login',
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class UserRegisterAPIView(APIView):
-    def post(self, request, *args, **kargs):
+    def post(self, request, *args, **kwargs):
+        print("POST: user registration ", request.data)
         serializer = UserRegisterSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
+            user = serializer.save()
+            token = AuthToken.objects.create(user)[1]
             response = {
-                'success': True,
-                'user': serializer.data,
-                'token': Token.objects.get(user=User.objects.get(username=serializer.data['username'])).key
+                "success": True,
+                "user": serializer.data,
+                "token": token,
             }
-            return Response(response, status=status.HTTP_200_OK)
-        raise ValidationError(
-            serializer.errors, code=status.HTTP_406_NOT_ACCEPTABLE)
+            return Response(response, status=status.HTTP_201_CREATED)
+        
+        raise ValidationError(serializer.errors, code=status.HTTP_400_BAD_REQUEST)
 
 
-class UserLogoutAPIView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request, *args):
-        token = Token.objects.get(user=request.user)
-        token.delete()
-        return Response({"success": True, "detail": "Logged out!"}, status=status.HTTP_200_OK)
-
-class LeadAPIView(APIView):
-    permission_classes = [IsAuthenticated]
+class LeadAPIView(APIView, PermissionRequiredMixin):
 
     def get(self, request, pk=None):
         if pk:
@@ -112,8 +118,7 @@ class LeadAPIView(APIView):
             'message': 'Lead deleted successfully'
         }, status=status.HTTP_204_NO_CONTENT)
 
-class ContactAPIView(APIView):
-    permission_classes = [IsAuthenticated]
+class ContactAPIView(APIView, PermissionRequiredMixin):
 
     def get(self, request, pk=None):
         if pk:
@@ -161,8 +166,7 @@ class ContactAPIView(APIView):
             'message': 'Contact deleted successfully'
         }, status=status.HTTP_204_NO_CONTENT)
 
-class NoteAPIView(APIView):
-    permission_classes = [IsAuthenticated]
+class NoteAPIView(APIView, PermissionRequiredMixin):
 
     def get(self, request, pk=None):
         if pk:
@@ -210,8 +214,7 @@ class NoteAPIView(APIView):
             'message': 'Note deleted successfully'
         }, status=status.HTTP_204_NO_CONTENT)
 
-class ReminderAPIView(APIView):
-    permission_classes = [IsAuthenticated]
+class ReminderAPIView(APIView, PermissionRequiredMixin):
     
     def get(self, request, pk=None):
         if pk:

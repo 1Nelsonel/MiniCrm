@@ -65,15 +65,34 @@ class LeadSerializer(serializers.ModelSerializer):
         model = Lead
         fields = '__all__'
 
+class ContactleadSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Lead
+        fields = ('id', 'name')
+
 class ContactSerializer(serializers.ModelSerializer):
+    lead = ContactleadSerializer(read_only=True)
+    lead_id = serializers.PrimaryKeyRelatedField(
+        queryset=Lead.objects.all(), write_only=True, source='lead'
+    )
+
     class Meta:
         model = Contact
-        fields = '__all__'
+        fields = ['id', 'name', 'email', 'phone', 'lead', 'lead_id']
+
+class ConstactLeadSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Lead
+        fields = ['id', 'name']
 
 class NoteSerializer(serializers.ModelSerializer):
+    lead = ConstactLeadSerializer(read_only=True)
+    lead_id = serializers.PrimaryKeyRelatedField(
+        queryset=Lead.objects.all(), write_only=True, source='lead'
+    )
     class Meta:
         model = Note
-        fields = '__all__'
+        fields = ['id', 'content', 'created_at', 'lead', 'lead_id']
 
 class ReminderSerializer(serializers.ModelSerializer):
     class Meta:

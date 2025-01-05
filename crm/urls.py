@@ -1,12 +1,15 @@
-from django.urls import path, include
-from rest_framework.routers import DefaultRouter
-from .views import LeadAPIView, ContactAPIView, NoteAPIView, ReminderAPIView, UserLoginAPIView, UserLogoutAPIView, UserRegisterAPIView
+from django.urls import path
+from .views import LeadAPIView, ContactAPIView, NoteAPIView, ReminderAPIView
+
+from knox import views as knox_views
+from .views import LoginView
+from django.views.decorators.csrf import csrf_exempt
 
 urlpatterns = [
-    # Authentication
-    path("login/", UserLoginAPIView.as_view(), name="user_login"),
-    path("register/", UserRegisterAPIView().as_view(), name="user_register"),
-    path("logout/", UserLogoutAPIView.as_view(), name="user_logout"),
+    path('login/', csrf_exempt(LoginView.as_view()), name='knox_login'),
+    path('logout/', knox_views.LogoutView.as_view(), name='knox_logout'),
+    path('logoutall/', knox_views.LogoutAllView.as_view(), name='knox_logoutall'),
+
 
     # API
     path('leads/', LeadAPIView.as_view()),
