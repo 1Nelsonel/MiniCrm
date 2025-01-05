@@ -3,15 +3,13 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from .models import Lead, Contact, Note, Reminder
-from .serializers import LeadSerializer, ContactSerializer, NoteSerializer, ReminderSerializer
-from rest_framework.exceptions import ValidationError
+from .serializers import LeadSerializer, ContactSerializer, NoteSerializer, RegisterSerializer, ReminderSerializer
 from knox.models import AuthToken
-from .serializers import UserRegisterSerializer
-from django.contrib.auth.mixins import PermissionRequiredMixin
 from django.contrib.auth import login
 from rest_framework import permissions
 from rest_framework.authtoken.serializers import AuthTokenSerializer
 from knox.views import LoginView as KnoxLoginView
+from rest_framework.permissions import IsAuthenticated
 
 class LoginView(KnoxLoginView):
     permission_classes = (permissions.AllowAny,)
@@ -53,31 +51,56 @@ class LoginView(KnoxLoginView):
                 'error': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-class UserRegisterAPIView(APIView):
-    def post(self, request, *args, **kwargs):
-        print("POST: user registration ", request.data)
-        serializer = UserRegisterSerializer(data=request.data)
-        if serializer.is_valid():
-            user = serializer.save()
-            token = AuthToken.objects.create(user)[1]
-            response = {
-                "success": True,
-                "user": serializer.data,
-                "token": token,
-            }
-            return Response(response, status=status.HTTP_201_CREATED)
-        
-        raise ValidationError(serializer.errors, code=status.HTTP_400_BAD_REQUEST)
+class RegisterView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request, format=None):
+        try:
+            print("POST: register ", request.data)
+            serializer = RegisterSerializer(data=request.data)
+            if serializer.is_valid():
+                user = serializer.save()
 
 
-class LeadAPIView(APIView, PermissionRequiredMixin):
+                from knox.models import AuthToken
+                _, token = AuthToken.objects.create(user)
+
+                return Response({
+                    'status': 'success',
+                    'message': 'User registered successfully',
+                    'data': {
+                        'token': token,
+                        'user': {
+                            'id': user.id,
+                            'username': user.username,
+                            'email': user.email
+                        }
+                    }
+                }, status=status.HTTP_201_CREATED)
+
+            return Response({
+                'status': 'error',
+                'message': 'Registration failed',
+                'errors': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        except Exception as e:
+            return Response({
+                'status': 'error',
+                'message': 'An error occurred during registration',
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class LeadAPIView(APIView):
+    permission_classes = [IsAuthenticated]
 
     def get(self, request, pk=None):
+        print("User: ", request.user)
         if pk:
-            lead = get_object_or_404(Lead, pk=pk)
+            lead = get_object_or_404(Lead, pk=pk, user=request.user) 
             serializer = LeadSerializer(lead)
         else:
-            leads = Lead.objects.all()
+            leads = Lead.objects.filter(user=request.user)
             serializer = LeadSerializer(leads, many=True)
         return Response({
             'message': 'Lead(s) retrieved successfully',
@@ -87,7 +110,7 @@ class LeadAPIView(APIView, PermissionRequiredMixin):
     def post(self, request):
         serializer = LeadSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
+            serializer.save(user=request.user) 
             return Response({
                 'message': 'Lead created successfully',
                 'data': serializer.data
@@ -98,7 +121,7 @@ class LeadAPIView(APIView, PermissionRequiredMixin):
         }, status=status.HTTP_400_BAD_REQUEST)
 
     def put(self, request, pk):
-        lead = get_object_or_404(Lead, pk=pk)
+        lead = get_object_or_404(Lead, pk=pk, user=request.user)
         serializer = LeadSerializer(lead, data=request.data)
         if serializer.is_valid():
             serializer.save()
@@ -112,20 +135,21 @@ class LeadAPIView(APIView, PermissionRequiredMixin):
         }, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, pk):
-        lead = get_object_or_404(Lead, pk=pk)
+        lead = get_object_or_404(Lead, pk=pk, user=request.user)
         lead.delete()
         return Response({
             'message': 'Lead deleted successfully'
         }, status=status.HTTP_204_NO_CONTENT)
-
-class ContactAPIView(APIView, PermissionRequiredMixin):
+    
+class ContactAPIView(APIView):
+    permission_classes = [IsAuthenticated]
 
     def get(self, request, pk=None):
         if pk:
-            contact = get_object_or_404(Contact, pk=pk)
+            contact = get_object_or_404(Contact, pk=pk, user=request.user)
             serializer = ContactSerializer(contact)
         else:
-            contacts = Contact.objects.all()
+            contacts = Contact.objects.filter(user=request.user)
             serializer = ContactSerializer(contacts, many=True)
         return Response({
             'message': 'Contact(s) retrieved successfully',
@@ -134,7 +158,7 @@ class ContactAPIView(APIView, PermissionRequiredMixin):
 
     def post(self, request):
         serializer = ContactSerializer(data=request.data)
-        if serializer.is_valid():
+        if serializer.is_valid(user=request.user):
             serializer.save()
             return Response({
                 'message': 'Contact created successfully',
@@ -146,7 +170,7 @@ class ContactAPIView(APIView, PermissionRequiredMixin):
         }, status=status.HTTP_400_BAD_REQUEST)
 
     def put(self, request, pk):
-        contact = get_object_or_404(Contact, pk=pk)
+        contact = get_object_or_404(Contact, pk=pk, user=request.user)
         serializer = ContactSerializer(contact, data=request.data)
         if serializer.is_valid():
             serializer.save()
@@ -160,20 +184,21 @@ class ContactAPIView(APIView, PermissionRequiredMixin):
         }, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, pk):
-        contact = get_object_or_404(Contact, pk=pk)
+        contact = get_object_or_404(Contact, pk=pk, user=request.user)
         contact.delete()
         return Response({
             'message': 'Contact deleted successfully'
         }, status=status.HTTP_204_NO_CONTENT)
 
-class NoteAPIView(APIView, PermissionRequiredMixin):
+class NoteAPIView(APIView):
+    permission_classes = [IsAuthenticated]
 
     def get(self, request, pk=None):
         if pk:
-            note = get_object_or_404(Note, pk=pk)
+            note = get_object_or_404(Note, pk=pk, user=request.user)
             serializer = NoteSerializer(note)
         else:
-            notes = Note.objects.all().select_related('lead')
+            notes = Note.objects.filter(user=request.user).select_related('lead')
             serializer = NoteSerializer(notes, many=True)
         return Response({
             'message': 'Note(s) retrieved successfully',
@@ -183,7 +208,7 @@ class NoteAPIView(APIView, PermissionRequiredMixin):
     def post(self, request):
         serializer = NoteSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
+            serializer.save(user=request.user) 
             return Response({
                 'message': 'Note created successfully',
                 'data': serializer.data
@@ -194,7 +219,7 @@ class NoteAPIView(APIView, PermissionRequiredMixin):
         }, status=status.HTTP_400_BAD_REQUEST)
 
     def put(self, request, pk):
-        note = get_object_or_404(Note, pk=pk)
+        note = get_object_or_404(Note, pk=pk, user=request.user)
         serializer = NoteSerializer(note, data=request.data)
         if serializer.is_valid():
             serializer.save()
@@ -208,20 +233,21 @@ class NoteAPIView(APIView, PermissionRequiredMixin):
         }, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, pk):
-        note = get_object_or_404(Note, pk=pk)
+        note = get_object_or_404(Note, pk=pk, user=request.user)
         note.delete()
         return Response({
             'message': 'Note deleted successfully'
         }, status=status.HTTP_204_NO_CONTENT)
 
-class ReminderAPIView(APIView, PermissionRequiredMixin):
-    
+class ReminderAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def get(self, request, pk=None):
         if pk:
-            reminder = get_object_or_404(Reminder, pk=pk)
+            reminder = get_object_or_404(Reminder, pk=pk, user=request.user) 
             serializer = ReminderSerializer(reminder)
         else:
-            reminders = Reminder.objects.all().select_related('lead')
+            reminders = Reminder.objects.filter(user=request.user).select_related('lead') 
             serializer = ReminderSerializer(reminders, many=True)
         return Response({
             'message': 'Reminder(s) retrieved successfully',
@@ -231,7 +257,7 @@ class ReminderAPIView(APIView, PermissionRequiredMixin):
     def post(self, request):
         serializer = ReminderSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
+            serializer.save(user=request.user) 
             return Response({
                 'message': 'Reminder created successfully',
                 'data': serializer.data
@@ -242,7 +268,7 @@ class ReminderAPIView(APIView, PermissionRequiredMixin):
         }, status=status.HTTP_400_BAD_REQUEST)
 
     def put(self, request, pk):
-        reminder = get_object_or_404(Reminder, pk=pk)
+        reminder = get_object_or_404(Reminder, pk=pk, user=request.user)
         serializer = ReminderSerializer(reminder, data=request.data)
         if serializer.is_valid():
             serializer.save()
@@ -256,7 +282,7 @@ class ReminderAPIView(APIView, PermissionRequiredMixin):
         }, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, pk):
-        reminder = get_object_or_404(Reminder, pk=pk)
+        reminder = get_object_or_404(Reminder, pk=pk, user=request.user)
         reminder.delete()
         return Response({
             'message': 'Reminder deleted successfully'

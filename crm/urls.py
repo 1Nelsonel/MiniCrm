@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import LeadAPIView, ContactAPIView, NoteAPIView, ReminderAPIView
+from .views import LeadAPIView, ContactAPIView, NoteAPIView, RegisterView, ReminderAPIView
 
 from knox import views as knox_views
 from .views import LoginView
@@ -9,7 +9,7 @@ urlpatterns = [
     path('login/', csrf_exempt(LoginView.as_view()), name='knox_login'),
     path('logout/', knox_views.LogoutView.as_view(), name='knox_logout'),
     path('logoutall/', knox_views.LogoutAllView.as_view(), name='knox_logoutall'),
-
+    path('register/', csrf_exempt(RegisterView.as_view()), name='knox_register'),
 
     # API
     path('leads/', LeadAPIView.as_view()),
