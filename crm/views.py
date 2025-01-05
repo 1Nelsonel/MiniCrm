@@ -1,7 +1,10 @@
 from django.shortcuts import get_object_or_404
+from django.utils.timezone import now
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+
+from crm.tasks import send_manual_reminder
 from .models import Lead, Contact, Note, Reminder
 from .serializers import LeadSerializer, ContactSerializer, NoteSerializer, RegisterSerializer, ReminderSerializer
 from knox.models import AuthToken
@@ -10,6 +13,7 @@ from rest_framework import permissions
 from rest_framework.authtoken.serializers import AuthTokenSerializer
 from knox.views import LoginView as KnoxLoginView
 from rest_framework.permissions import IsAuthenticated
+from django.utils import timezone
 
 class LoginView(KnoxLoginView):
     permission_classes = (permissions.AllowAny,)
@@ -90,6 +94,72 @@ class RegisterView(APIView):
                 'message': 'An error occurred during registration',
                 'error': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class DashboardAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            user = request.user
+
+            total_leads = Lead.objects.filter(user=user).count()
+
+            active_contacts = Contact.objects.filter(user=user).count()
+
+            pending_reminders = Reminder.objects.filter(
+                user=user, remind_at__gte=now()
+            ).count()
+
+            recent_notes = (
+                Note.objects.filter(user=user)
+                .select_related('lead')
+                .order_by('-created_at')[:5]
+            )
+            recent_notes_count = recent_notes.count()
+
+            recent_reminders = (
+                Reminder.objects.filter(user=user)
+                .select_related('lead')
+                .order_by('-created_at')[:5]
+            )
+
+            # Combine recent notes and reminders into recent activities
+            recent_activities = [
+                {
+                    "id": note.id,
+                    "description": f"Note added for lead: {note.lead.name}",
+                    "timestamp": note.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                }
+                for note in recent_notes
+            ] + [
+                {
+                    "id": reminder.id,
+                    "description": f"Reminder created for lead: {reminder.lead.name}",
+                    "timestamp": reminder.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                }
+                for reminder in recent_reminders
+            ]
+
+            # Sort activities by timestamp (descending)
+            recent_activities = sorted(
+                recent_activities, key=lambda x: x["timestamp"], reverse=True
+            )
+
+            # Response data
+            data = {
+                "stats": {
+                    "total_leads": total_leads,
+                    "active_contacts": active_contacts,
+                    "pending_reminders": pending_reminders,
+                    "recent_notes": recent_notes_count,
+                },
+                "recent_activity": recent_activities,
+            }
+
+            return Response({"status": "success", "data": data}, status=200)
+
+        except Exception as e:
+            return Response({"status": "error", "message": str(e)}, status=500)
 
 class LeadAPIView(APIView):
     permission_classes = [IsAuthenticated]
@@ -255,31 +325,29 @@ class ReminderAPIView(APIView):
         })
 
     def post(self, request):
+        if 'remind_at' not in request.data:
+            request.data['remind_at'] = timezone.now()
+
+        # Validate and save the reminder
         serializer = ReminderSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save(user=request.user) 
+            reminder = serializer.save(user=request.user)  
+
+            # Trigger the Celery task to send the reminder email
+            send_manual_reminder.delay(reminder.id)  
+
             return Response({
                 'message': 'Reminder created successfully',
                 'data': serializer.data
             }, status=status.HTTP_201_CREATED)
+
+        # Return errors if serializer is invalid
         return Response({
             'message': 'Reminder creation failed',
             'errors': serializer.errors
         }, status=status.HTTP_400_BAD_REQUEST)
 
-    def put(self, request, pk):
-        reminder = get_object_or_404(Reminder, pk=pk, user=request.user)
-        serializer = ReminderSerializer(reminder, data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response({
-                'message': 'Reminder updated successfully',
-                'data': serializer.data
-            })
-        return Response({
-            'message': 'Reminder update failed',
-            'errors': serializer.errors
-        }, status=status.HTTP_400_BAD_REQUEST)
+    
 
     def delete(self, request, pk):
         reminder = get_object_or_404(Reminder, pk=pk, user=request.user)

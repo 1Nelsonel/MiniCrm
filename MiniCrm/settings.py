@@ -15,6 +15,7 @@ import os
 import environ
 from celery.schedules import crontab
 from datetime import timedelta
+from celery.schedules import crontab
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -93,7 +94,21 @@ CELERY_ACCEPT_CONTENT = ['application/json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 
-CELERY_BEAT_SCHEDULE = {}
+
+# CELERY_BEAT_SCHEDULE = {
+#     'send-reminder-every-minute': {
+#         'task': 'crm.tasks.send_reminder_to_all_active_leads', # Task to run
+#         'schedule': crontab(minute='*/1'),  # Runs every minute
+#     },
+# }
+
+CELERY_BEAT_SCHEDULE = {
+    'send-reminder-every-hour': {
+        'task': 'crm.tasks.send_reminder_to_all_active_leads',  # Task to run
+        'schedule': crontab(minute=0, hour='*'),  # Runs every hour at minute 0
+    },
+}
+
 
 
 ROOT_URLCONF = 'MiniCrm.urls'
@@ -174,11 +189,11 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Email Configurations
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = env("EMAIL_HOST")
 EMAIL_HOST_USER = env("EMAIL_HOST_USER")
 EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD")
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 EMAIL_USE_SSL = True
 EMAIL_PORT = env("EMAIL_PORT")
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_TIMEOUT = 20
