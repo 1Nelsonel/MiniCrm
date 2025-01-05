@@ -86,22 +86,19 @@ CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = ["http://localhost:5173"]
 CSRF_TRUSTED_ORIGINS = ['http://localhost:5173']
 
+# Retrieve Redis host from environment variables
+redis_host = env("REDIS_HOST")
+
 # Configure Celery for Django
-CELERY_BROKER_URL = "redis://redis_crm:6379/0"
-CELERY_RESULT_BACKEND = "redis://redis_crm:6379/0"
+CELERY_BROKER_URL = f'redis://{redis_host}:6379/0'
+CELERY_RESULT_BACKEND = f'redis://{redis_host}:6379/0'
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
-CELERY_ACCEPT_CONTENT = ['application/json']
+CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 
 
-# CELERY_BEAT_SCHEDULE = {
-#     'send-reminder-every-minute': {
-#         'task': 'crm.tasks.send_reminder_to_all_active_leads', # Task to run
-#         'schedule': crontab(minute='*/1'),  # Runs every minute
-#     },
-# }
-
+# Celery Beat Configuration
 CELERY_BEAT_SCHEDULE = {
     'send-reminder-every-hour': {
         'task': 'crm.tasks.send_reminder_to_all_active_leads',  # Task to run
