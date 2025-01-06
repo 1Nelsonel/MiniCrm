@@ -3,8 +3,6 @@ from django.utils.timezone import now
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-
-from crm.tasks import send_manual_reminder
 from .models import Lead, Contact, Note, Reminder
 from .serializers import LeadSerializer, ContactSerializer, NoteSerializer, RegisterSerializer, ReminderSerializer
 from knox.models import AuthToken
