@@ -37,6 +37,7 @@ class Reminder(models.Model):
     user = models.ForeignKey(User, related_name='Reminder_relates_user', on_delete=models.CASCADE, null=True, blank=True)
     lead = models.ForeignKey(Lead, related_name='Reminder_related_lead', on_delete=models.CASCADE)
     message = models.CharField(max_length=255)
+    status = models.CharField(max_length=100, default='Pending')
     remind_at = models.DateTimeField()
     created_at = models.DateTimeField(auto_now_add=True)
 

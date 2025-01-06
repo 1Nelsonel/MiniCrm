@@ -98,11 +98,10 @@ CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 
 
-# Celery Beat Configuration
 CELERY_BEAT_SCHEDULE = {
-    'send-reminder-every-hour': {
-        'task': 'crm.tasks.send_reminder_to_all_active_leads',  # Task to run
-        'schedule': crontab(minute=0, hour='*'),  # Runs every hour at minute 0
+    'check-pending-reminders': {
+        'task': 'crm.tasks.check_pending_reminders',
+        'schedule': crontab(minute='*'),  # Run every minute
     },
 }
 

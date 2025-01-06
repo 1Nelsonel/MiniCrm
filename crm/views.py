@@ -333,9 +333,6 @@ class ReminderAPIView(APIView):
         if serializer.is_valid():
             reminder = serializer.save(user=request.user)  
 
-            # Trigger the Celery task to send the reminder email
-            send_manual_reminder.delay(reminder.id)  
-
             return Response({
                 'message': 'Reminder created successfully',
                 'data': serializer.data

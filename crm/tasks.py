@@ -7,61 +7,43 @@ from django.conf import settings
 from django.utils import timezone
 from .models import Lead
 
-@shared_task
-def send_manual_reminder(reminder_id):
-    try:
-        reminder = Reminder.objects.get(id=reminder_id)
-
-        # Create the email message
-        email = EmailMessage(
-            subject='Manual Reminder Notification',
-            body=reminder.message,
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            to=[reminder.lead.email],
-        )
-
-        # Send the email
-        email.send()
-
-        print(f"Manual reminder sent to {reminder.lead.email}")
-
-    except Reminder.DoesNotExist:
-        print(f"Reminder with ID {reminder_id} does not exist")
-    except Exception as e:
-        print(f"Failed to send manual reminder: {e}")
 
 @shared_task
-def send_reminder_to_all_active_leads():
-    active_leads = Lead.objects.filter(status='Active')
-    sent_reminders = []
-
-    for lead in active_leads:
-        if not lead.email: 
-            continue
-
-        # Create a reminder message
-        message = f"Hello {lead.name}, this is your scheduled reminder."
-
-        # Send the email reminder
+def check_pending_reminders():
+    # Get all pending reminders where remind_at time has passed
+    pending_reminders = Reminder.objects.filter(
+        status='Pending',
+        remind_at__lte=timezone.now()
+    ).select_related('lead')
+    
+    for reminder in pending_reminders:
+        # Send email
+        subject = f'Reminder: Task for {reminder.lead.name}'
+        message = f"""
+        Dear {reminder.lead.name},
+        
+        This is a reminder about your task:
+        {reminder.message}
+        
+        Lead: {reminder.lead.name}
+        Due time: {reminder.remind_at}
+        
+        Best regards,
+        Your Application Team
+        """
+        
         try:
             email = EmailMessage(
-                subject='Scheduled Reminder',
+                subject=subject,
                 body=message,
-                to=[lead.email],
+                to=[reminder.lead.email],
             )
             email.send()
-            print(f"Successfully sent reminder email to {lead.email}")
-
-            # Create a record in the Reminder model
-            Reminder.objects.create(
-                lead=lead,
-                user=lead.user,
-                message=message,
-                remind_at=timezone.now(),
-            )
-            sent_reminders.append(f"Sent reminder to {lead.name} at {timezone.now()}")
-
+            print(f"Successfully sent reminder email to {reminder.lead.email}")
+            
+            # Update reminder status
+            reminder.status = 'Complete'
+            reminder.save()
+            
         except Exception as e:
-            print(f"Failed to send email to {lead.email}: {e}")
-
-    return sent_reminders
+            print(f"Failed to send reminder email: {str(e)}")
