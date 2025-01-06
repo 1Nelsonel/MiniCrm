@@ -38,6 +38,11 @@ class ContactSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'email', 'phone', 'lead', 'lead_id', 'user']
         read_only_fields = ['user'] 
 
+    def create(self, validated_data):
+        # Add the user to the validated data
+        validated_data['user'] = self.context['user']
+        return super().create(validated_data)
+
 
 # Note Serializer
 class NoteSerializer(serializers.ModelSerializer):

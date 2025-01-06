@@ -225,8 +225,8 @@ class ContactAPIView(APIView):
         })
 
     def post(self, request):
-        serializer = ContactSerializer(data=request.data)
-        if serializer.is_valid(user=request.user):
+        serializer = ContactSerializer(data=request.data, context={'user': request.user})
+        if serializer.is_valid():
             serializer.save()
             return Response({
                 'message': 'Contact created successfully',
@@ -236,6 +236,7 @@ class ContactAPIView(APIView):
             'message': 'Contact creation failed',
             'errors': serializer.errors
         }, status=status.HTTP_400_BAD_REQUEST)
+
 
     def put(self, request, pk):
         contact = get_object_or_404(Contact, pk=pk, user=request.user)
