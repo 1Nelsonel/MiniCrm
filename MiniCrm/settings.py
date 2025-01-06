@@ -83,9 +83,29 @@ MIDDLEWARE = [
 
 
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOWED_ORIGINS = ["http://localhost:5173","https://nelsoneltechgroup.co.ke","https://185.113.249.150"]
-CSRF_TRUSTED_ORIGINS = ["http://localhost:5173","https://nelsoneltechgroup.co.ke","https://185.113.249.150"]
+CORS_ALLOWED_ORIGINS = [
+    "https://nelsoneltechgroup.co.ke",
+    "http://localhost:5173",
+]
 
+CSRF_TRUSTED_ORIGINS = [
+    "https://nelsoneltechgroup.co.ke",
+    "http://localhost:5173",
+]
+
+CORS_ALLOW_HEADERS = [
+    "content-type",
+    "authorization",
+    "x-csrftoken",
+]
+
+CORS_ALLOW_METHODS = [
+    "GET",
+    "POST",
+    "PUT",
+    "DELETE",
+    "OPTIONS",
+]
 # Retrieve Redis host from environment variables
 redis_host = env("REDIS_HOST")
 
