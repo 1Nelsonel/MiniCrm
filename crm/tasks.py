@@ -1,6 +1,7 @@
 from celery import shared_task
 from django.core.mail import EmailMessage
 from django.utils import timezone
+from django.conf import settings 
 from .models import Reminder
 import logging
 
